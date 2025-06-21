@@ -96,6 +96,7 @@ export default function App({
 }) {
   const [geojson, setGeojson] = useState<any>(null);
   const [intensity, setIntensity] = useState<StateIntensity>({});
+  const [ranks, setRanks] = useState<Record<string, number>>({});
 
   // Load GeoJSON
   useEffect(() => {
@@ -114,6 +115,15 @@ export default function App({
           header: true,
           delimiter: "\t", // TSV support
           complete: (results) => {
+            // const counts: StateIntensity = {};
+            // for (const row of results.data as any[]) {
+            //   const abbr = row["Institution State"]?.trim();
+            //   const state = STATE_ABBR_TO_NAME[abbr] || abbr;
+            //   const filled = parseFloat(row["Requests Filled"]) || 0;
+            //   if (state) counts[state] = (counts[state] || 0) + filled;
+            // }
+            // setIntensity(counts);
+            // console.log("State Intensity:", counts);
             const counts: StateIntensity = {};
             for (const row of results.data as any[]) {
               const abbr = row["Institution State"]?.trim();
@@ -121,8 +131,22 @@ export default function App({
               const filled = parseFloat(row["Requests Filled"]) || 0;
               if (state) counts[state] = (counts[state] || 0) + filled;
             }
+
+            // Compute ranks for states with data
+            const entries = Object.entries(counts)
+              .filter(([state, value]) => value > 0)
+              .sort((a, b) => a[1] - b[1]);
+            const rankMap: Record<string, number> = {};
+            entries.forEach(([state, value], idx) => {
+              rankMap[state] = idx;
+            });
+            const minRank = 0;
+            const maxRank = entries.length > 1 ? entries.length - 1 : 1;
+
             setIntensity(counts);
+            setRanks(rankMap); // <-- Add this line, see below
             console.log("State Intensity:", counts);
+            console.log("State Ranks:", rankMap);
           },
         });
       });
@@ -131,17 +155,19 @@ export default function App({
   function getFillColor(feature: any): [number, number, number, number] {
     const state = feature.properties.name;
     const value = intensity[state] || 0;
-    if (value === 0) {
+    if (value === 0 || ranks[state] === undefined) {
       return [0, 0, 0, 180]; // Black for no data
     }
-    const max = Math.max(...Object.values(intensity), 1);
-    const t = value / max;
-    const minRed = 80; // Minimum red for any nonzero value
-    // Interpolate from minRed to 255
-    const red = Math.round(minRed + (255 - minRed) * t);
-    return [red, 0, 0, 180];
+    const rank = ranks[state];
+    const maxRank = Math.max(...Object.values(ranks), 1);
+    const t = rank / maxRank;
+    return [
+      Math.round(255 * t), // R
+      0,
+      0,
+      180,
+    ];
   }
-
   const layers = [
     geojson &&
       new GeoJsonLayer({
