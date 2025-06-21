@@ -82,6 +82,12 @@ export default function App({
   const [intensity, setIntensity] = useState<StateIntensity>({});
   const [ranks, setRanks] = useState<Record<string, number>>({});
 
+  const [fileCount, setFileCount] = useState(1);
+  const fileUrls = [
+    "/data/lendingDetail-012024.tsv",
+    "/data/lendingDetail-022024.tsv",
+  ];
+
   // Load GeoJSON
   useEffect(() => {
     fetch(STATES_GEOJSON_URL)
@@ -163,42 +169,67 @@ export default function App({
       }),
   ];
   return (
-    <DeckGL
-      initialViewState={
-        {
-          longitude: -98,
-          latitude: 39,
-          zoom: 3.5,
-          maxZoom: 16,
-          pitch: 0,
-          bearing: 0,
-        } as MapViewState
-      }
-      controller={true}
-      layers={layers}
-      getTooltip={({ object }) =>
-        object
-          ? {
-              html: `<b>${object.properties.name}</b><br/>
+    <>
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          left: 20,
+          top: 20,
+          background: "#222",
+          color: "#fff",
+          padding: 10,
+          borderRadius: 8,
+        }}
+      >
+        <label>
+          Files to include: {fileCount}
+          <input
+            type="range"
+            min={1}
+            max={fileUrls.length}
+            value={fileCount}
+            onChange={(e) => setFileCount(Number(e.target.value))}
+          />
+        </label>
+      </div>
+      <DeckGL
+        initialViewState={
+          {
+            longitude: -98,
+            latitude: 39,
+            zoom: 3.5,
+            maxZoom: 16,
+            pitch: 0,
+            bearing: 0,
+          } as MapViewState
+        }
+        controller={true}
+        layers={layers}
+        getTooltip={({ object }) =>
+          object
+            ? {
+                html: `<b>${object.properties.name}</b><br/>
          Requests Filled: ${intensity[object.properties.name] || 0}<br/>
          Rank: ${
            ranks[object.properties.name] !== undefined
              ? Object.keys(ranks).length - ranks[object.properties.name]
              : "N/A"
          }`,
-              style: {
-                backgroundColor: "rgba(0,0,0,0.8)",
-                color: "white",
-                fontSize: "1em",
-                borderRadius: "4px",
-                padding: "6px",
-              },
-            }
-          : null
-      }
-    >
-      <Map reuseMaps mapStyle={mapStyle} />
-    </DeckGL>
+                style: {
+                  backgroundColor: "rgba(0,0,0,0.8)",
+                  color: "white",
+                  fontSize: "1em",
+                  borderRadius: "4px",
+                  padding: "6px",
+                },
+              }
+            : null
+        }
+      >
+        <Map reuseMaps mapStyle={mapStyle} />
+      </DeckGL>
+    </>
   );
 }
 
