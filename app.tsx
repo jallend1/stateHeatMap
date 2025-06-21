@@ -2,7 +2,6 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { Map } from "react-map-gl/maplibre";
 import { DeckGL } from "@deck.gl/react";
-import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import Papa from "papaparse";
 import { useEffect, useState } from "react";
@@ -62,33 +61,18 @@ const STATE_ABBR_TO_NAME: Record<string, string> = {
   WY: "Wyoming",
 };
 
-const DATA_URL =
-  "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/screen-grid/uber-pickup-locations.json"; // eslint-disable-line
-
-const INITIAL_VIEW_STATE: MapViewState = {
-  longitude: -73.75,
-  latitude: 40.73,
-  zoom: 9,
-  maxZoom: 16,
-  pitch: 0,
-  bearing: 0,
-};
-
 const MAP_STYLE =
   "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
 
-type DataPoint = [longitude: number, latitude: number, count: number];
-
-// US States GeoJSON (public domain source)
 const STATES_GEOJSON_URL =
   "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json";
 
 type StateIntensity = {
-  [state: string]: number; // e.g., { "California": 42, ... }
+  [state: string]: number;
 };
 
 export default function App({
-  tsvUrl: tsvUrl = "/lendingDetail.tsv", // e.g., '/data.csv'
+  tsvUrl: tsvUrl = "/lendingDetail.tsv",
   mapStyle = MAP_STYLE,
 }: {
   tsvUrl: string;
@@ -105,7 +89,7 @@ export default function App({
       .then(setGeojson);
   }, []);
 
-  // Load CSV and compute intensity per state
+  // Load CSV and calculates state intensity
   useEffect(() => {
     if (!tsvUrl) return;
     fetch(tsvUrl)
@@ -115,15 +99,6 @@ export default function App({
           header: true,
           delimiter: "\t", // TSV support
           complete: (results) => {
-            // const counts: StateIntensity = {};
-            // for (const row of results.data as any[]) {
-            //   const abbr = row["Institution State"]?.trim();
-            //   const state = STATE_ABBR_TO_NAME[abbr] || abbr;
-            //   const filled = parseFloat(row["Requests Filled"]) || 0;
-            //   if (state) counts[state] = (counts[state] || 0) + filled;
-            // }
-            // setIntensity(counts);
-            // console.log("State Intensity:", counts);
             const counts: StateIntensity = {};
             for (const row of results.data as any[]) {
               const abbr = row["Institution State"]?.trim();
@@ -140,13 +115,9 @@ export default function App({
             entries.forEach(([state, value], idx) => {
               rankMap[state] = idx;
             });
-            const minRank = 0;
-            const maxRank = entries.length > 1 ? entries.length - 1 : 1;
 
             setIntensity(counts);
-            setRanks(rankMap); // <-- Add this line, see below
-            console.log("State Intensity:", counts);
-            console.log("State Ranks:", rankMap);
+            setRanks(rankMap);
           },
         });
       });
@@ -158,16 +129,26 @@ export default function App({
     if (value === 0 || ranks[state] === undefined) {
       return [0, 0, 0, 180]; // Black for no data
     }
-    const rank = ranks[state];
-    const maxRank = Math.max(...Object.values(ranks), 1);
-    const t = rank / maxRank;
-    return [
-      Math.round(255 * t), // R
-      0,
-      0,
-      180,
-    ];
+    // Find min and max values among all states with data
+    const values = Object.values(intensity).filter((v) => v > 0);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+
+    // If all values are the same, use max intensity
+    if (minValue === maxValue) {
+      return [255, 0, 0, 180];
+    }
+    const minRed = 30;
+    const maxRed = 255;
+    const logMin = Math.log(minValue);
+    const logMax = Math.log(maxValue);
+    const logValue = Math.log(value);
+    const t = (logValue - logMin) / (logMax - logMin);
+    const red = Math.round(minRed + (maxRed - minRed) * t);
+
+    return [red, 0, 0, 180];
   }
+
   const layers = [
     geojson &&
       new GeoJsonLayer({
@@ -198,9 +179,13 @@ export default function App({
       getTooltip={({ object }) =>
         object
           ? {
-              html: `<b>${object.properties.name}</b><br/>Requests Filled: ${
-                intensity[object.properties.name] || 0
-              }`,
+              html: `<b>${object.properties.name}</b><br/>
+         Requests Filled: ${intensity[object.properties.name] || 0}<br/>
+         Rank: ${
+           ranks[object.properties.name] !== undefined
+             ? Object.keys(ranks).length - ranks[object.properties.name]
+             : "N/A"
+         }`,
               style: {
                 backgroundColor: "rgba(0,0,0,0.8)",
                 color: "white",
@@ -218,5 +203,5 @@ export default function App({
 }
 
 export function renderToDOM(container: HTMLDivElement) {
-  createRoot(container).render(<App />);
+  createRoot(container).render(<App tsvUrl="/lendingDetail.tsv" />);
 }
