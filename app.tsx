@@ -72,7 +72,7 @@ type StateIntensity = {
 };
 
 export default function App({
-  tsvUrl: tsvUrl = "/lendingDetail.tsv",
+  tsvUrl: tsvUrl = "/data/lendingDetail - 0124.tsv",
   mapStyle = MAP_STYLE,
 }: {
   tsvUrl: string;
@@ -203,5 +203,5 @@ export default function App({
 }
 
 export function renderToDOM(container: HTMLDivElement) {
-  createRoot(container).render(<App tsvUrl="/lendingDetail.tsv" />);
+  createRoot(container).render(<App tsvUrl="/data/lendingDetail - 0124.tsv" />);
 }
