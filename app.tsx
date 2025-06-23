@@ -84,8 +84,26 @@ export default function App({
 
   const [fileCount, setFileCount] = useState(1);
   const fileUrls = [
-    "/data/lendingDetail-012024.tsv",
-    "/data/lendingDetail-022024.tsv",
+    "/data/lendingDetail - 0124.tsv",
+    "/data/lendingDetail - 0224.tsv",
+  ];
+
+  // Update the map colors based on the number of files selected
+  const layers = [
+    geojson &&
+      new GeoJsonLayer({
+        id: "states",
+        data: geojson,
+        pickable: true,
+        stroked: true,
+        filled: true,
+        getFillColor,
+        getLineColor: [255, 255, 255, 200],
+        lineWidthMinPixels: 1,
+        updateTriggers: {
+          getFillColor: [intensity, ranks],
+        },
+      }),
   ];
 
   // Load GeoJSON
@@ -96,38 +114,73 @@ export default function App({
   }, []);
 
   // Load CSV and calculates state intensity
+  // useEffect(() => {
+  //   if (!tsvUrl) return;
+  //   fetch(tsvUrl)
+  //     .then((res) => res.text())
+  //     .then((text) => {
+  //       Papa.parse(text, {
+  //         header: true,
+  //         delimiter: "\t", // TSV support
+  //         complete: (results) => {
+  //           const counts: StateIntensity = {};
+  //           for (const row of results.data as any[]) {
+  //             const abbr = row["Institution State"]?.trim();
+  //             const state = STATE_ABBR_TO_NAME[abbr] || abbr;
+  //             const filled = parseFloat(row["Requests Filled"]) || 0;
+  //             if (state) counts[state] = (counts[state] || 0) + filled;
+  //           }
+
+  //           // Compute ranks for states with data
+  //           const entries = Object.entries(counts)
+  //             .filter(([state, value]) => value > 0)
+  //             .sort((a, b) => a[1] - b[1]);
+  //           const rankMap: Record<string, number> = {};
+  //           entries.forEach(([state, value], idx) => {
+  //             rankMap[state] = idx;
+  //           });
+
+  //           setIntensity(counts);
+  //           setRanks(rankMap);
+  //         },
+  //       });
+  //     });
+  // }, [tsvUrl]);
   useEffect(() => {
-    if (!tsvUrl) return;
-    fetch(tsvUrl)
-      .then((res) => res.text())
-      .then((text) => {
-        Papa.parse(text, {
-          header: true,
-          delimiter: "\t", // TSV support
-          complete: (results) => {
-            const counts: StateIntensity = {};
-            for (const row of results.data as any[]) {
-              const abbr = row["Institution State"]?.trim();
-              const state = STATE_ABBR_TO_NAME[abbr] || abbr;
-              const filled = parseFloat(row["Requests Filled"]) || 0;
-              if (state) counts[state] = (counts[state] || 0) + filled;
-            }
+    // Get the first `fileCount` files
+    const urlsToFetch = fileUrls.slice(0, fileCount);
+    Promise.all(
+      urlsToFetch.map((url) =>
+        fetch(url)
+          .then((res) => res.text())
+          .then(
+            (text) =>
+              Papa.parse(text, { header: true, delimiter: "\t" }).data as any[]
+          )
+      )
+    ).then((allDataArrays) => {
+      const allRows = allDataArrays.flat();
+      const counts: StateIntensity = {};
+      for (const row of allRows) {
+        const abbr = row["Institution State"]?.trim();
+        const state = STATE_ABBR_TO_NAME[abbr] || abbr;
+        const filled = parseFloat(row["Requests Filled"]) || 0;
+        if (state) counts[state] = (counts[state] || 0) + filled;
+      }
 
-            // Compute ranks for states with data
-            const entries = Object.entries(counts)
-              .filter(([state, value]) => value > 0)
-              .sort((a, b) => a[1] - b[1]);
-            const rankMap: Record<string, number> = {};
-            entries.forEach(([state, value], idx) => {
-              rankMap[state] = idx;
-            });
-
-            setIntensity(counts);
-            setRanks(rankMap);
-          },
-        });
+      // Compute ranks for states with data
+      const entries = Object.entries(counts)
+        .filter(([state, value]) => value > 0)
+        .sort((a, b) => a[1] - b[1]);
+      const rankMap: Record<string, number> = {};
+      entries.forEach(([state, value], idx) => {
+        rankMap[state] = idx;
       });
-  }, [tsvUrl]);
+
+      setIntensity(counts);
+      setRanks(rankMap);
+    });
+  }, [fileCount, fileUrls]);
 
   function getFillColor(feature: any): [number, number, number, number] {
     const state = feature.properties.name;
@@ -155,19 +208,20 @@ export default function App({
     return [red, 0, 0, 180];
   }
 
-  const layers = [
-    geojson &&
-      new GeoJsonLayer({
-        id: "states",
-        data: geojson,
-        pickable: true,
-        stroked: true,
-        filled: true,
-        getFillColor,
-        getLineColor: [255, 255, 255, 200],
-        lineWidthMinPixels: 1,
-      }),
-  ];
+  // TEST Moved up the document to ensure rerendering, but let's comment it out for now
+  // const layers = [
+  //   geojson &&
+  //     new GeoJsonLayer({
+  //       id: "states",
+  //       data: geojson,
+  //       pickable: true,
+  //       stroked: true,
+  //       filled: true,
+  //       getFillColor,
+  //       getLineColor: [255, 255, 255, 200],
+  //       lineWidthMinPixels: 1,
+  //     }),
+  // ];
   return (
     <>
       <div
